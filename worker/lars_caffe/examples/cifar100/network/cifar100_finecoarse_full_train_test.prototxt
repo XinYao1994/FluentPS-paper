@@ -1,0 +1,517 @@
+name: "CIFAR100_full"
+
+layer {
+  name: "cifar"
+  type: "HDF5Data"
+  # the 1st top is the data itself: the name is only convention
+  top: "data"
+
+  # the 2nd top is the ground truth: the name is only convention
+  # TBD: "coarse_labels" or "fine_labels"
+  top: "fine_labels"
+  include {
+    phase: TRAIN
+  }
+
+  # the Data layer configuration
+  hdf5_data_param {
+    # path to the DB
+    # TBD: update the content (and save to different file) if the .txt file if adding data
+    source: "train.txt"
+
+    # TBD: batch size
+    batch_size: 100
+  }
+}
+layer {
+  name: "cifar"
+  type: "HDF5Data"
+  # the 1st top is the data itself: the name is only convention
+  top: "data"
+
+  # the 2nd top is the ground truth: the name is only convention
+  # TBD: "coarse_labels" or "fine_labels"
+  top: "fine_labels"
+  include {
+    phase: TEST
+  }
+
+  hdf5_data_param {
+    # DO NOT AUGMENT THE TEST or Validation DATA.
+    source: "validation.txt"
+    # TBD: change source to test data ONLY with the FINAL trained network
+
+    # TBD: batch size
+    batch_size: 100
+  }
+}
+
+### COARSE LABELS NETWORK (set learning rate to 0 with it!!)
+layer {
+  name: "conv1"
+  type: "Convolution"
+  bottom: "data"
+  top: "conv1c"
+  param {
+    lr_mult: 0
+  }
+  param {
+    lr_mult: 0
+  }
+  convolution_param {
+    num_output: 32
+    pad: 2
+    kernel_size: 5
+    stride: 1
+    weight_filler {
+      type: "gaussian"
+      std: 0.0001
+    }
+    bias_filler {
+      type: "constant"
+    }
+  }
+}
+
+layer {
+  name: "pool1"
+  type: "Pooling"
+  bottom: "conv1c"
+  top: "pool1c"
+  pooling_param {
+    pool: MAX
+    kernel_size: 3
+    stride: 2
+  }
+}
+layer {
+  name: "relu1"
+  type: "ReLU"
+  bottom: "pool1c"
+  top: "pool1c"
+}
+layer {
+  name: "norm1"
+  type: "LRN"
+  bottom: "pool1c"
+  top: "norm1c"
+  lrn_param {
+    local_size: 3
+    alpha: 5e-05
+    beta: 0.75
+    norm_region: WITHIN_CHANNEL
+  }
+}
+
+layer {
+  name: "conv2"
+  type: "Convolution"
+  bottom: "norm1c"
+  top: "conv2c"
+  param {
+    lr_mult: 0
+  }
+  param {
+    lr_mult: 0
+  }
+  convolution_param {
+    num_output: 32
+    pad: 2
+    kernel_size: 5
+    stride: 1
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+    }
+  }
+}
+layer {
+  name: "relu2"
+  type: "ReLU"
+  bottom: "conv2c"
+  top: "conv2c"
+}
+layer {
+  name: "pool2"
+  type: "Pooling"
+  bottom: "conv2c"
+  top: "pool2c"
+  pooling_param {
+    pool: AVE
+    kernel_size: 3
+    stride: 2
+  }
+}
+layer {
+  name: "norm2"
+  type: "LRN"
+  bottom: "pool2c"
+  top: "norm2c"
+  lrn_param {
+    local_size: 3
+    alpha: 5e-05
+    beta: 0.75
+    norm_region: WITHIN_CHANNEL
+  }
+}
+
+layer {
+  name: "conv3"
+  type: "Convolution"
+  bottom: "norm2c"
+  top: "conv3c"
+  param {
+    lr_mult: 0
+  }
+  param {
+    lr_mult: 0
+  }
+  convolution_param {
+    num_output: 64
+    pad: 2
+    kernel_size: 5
+    stride: 1
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+    }
+  }
+}
+layer {
+  name: "relu3"
+  type: "ReLU"
+  bottom: "conv3c"
+  top: "conv3c"
+}
+layer {
+  name: "dropconv3"
+  type: "Dropout"
+  bottom: "conv3c"
+  top: "conv3c"
+  dropout_param {
+    dropout_ratio: 0.5
+  }
+}
+
+layer {
+  name: "pool3"
+  type: "Pooling"
+  bottom: "conv3c"
+  top: "pool3c"
+  pooling_param {
+    pool: AVE
+    kernel_size: 3
+    stride: 2
+  }
+}
+
+
+layer {
+  name: "ip1_coarse"
+  type: "InnerProduct"
+  bottom: "pool3c"
+  top: "ip1_coarse"
+  param {
+    lr_mult: 0
+    decay_mult: 0
+  }
+  param {
+    lr_mult: 0
+    decay_mult: 0
+  }
+  inner_product_param {
+    num_output: 20
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+    }
+  }
+}
+
+
+
+
+### FINE LABLES NETWORK
+layer {
+  name: "conv1f"
+  type: "Convolution"
+  bottom: "data"
+  top: "conv1"
+  param {
+    lr_mult: 1
+  }
+  param {
+    lr_mult: 2
+  }
+  convolution_param {
+    num_output: 32
+    pad: 2
+    kernel_size: 5
+    stride: 1
+    weight_filler {
+      type: "gaussian"
+      std: 0.0001
+    }
+    bias_filler {
+      type: "constant"
+    }
+  }
+}
+
+layer {
+  name: "pool1f"
+  type: "Pooling"
+  bottom: "conv1"
+  top: "pool1"
+  pooling_param {
+    pool: MAX
+    kernel_size: 3
+    stride: 2
+  }
+}
+layer {
+  name: "relu1f"
+  type: "ReLU"
+  bottom: "pool1"
+  top: "pool1"
+}
+layer {
+  name: "norm1f"
+  type: "LRN"
+  bottom: "pool1"
+  top: "norm1"
+  lrn_param {
+    local_size: 3
+    alpha: 5e-05
+    beta: 0.75
+    norm_region: WITHIN_CHANNEL
+  }
+}
+layer {
+  name: "conv2f"
+  type: "Convolution"
+  bottom: "norm1"
+  top: "conv2"
+  param {
+    lr_mult: 1
+  }
+  param {
+    lr_mult: 2
+  }
+  convolution_param {
+    num_output: 32
+    pad: 2
+    kernel_size: 5
+    stride: 1
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+    }
+  }
+}
+layer {
+  name: "relu2f"
+  type: "ReLU"
+  bottom: "conv2"
+  top: "conv2"
+}
+layer {
+  name: "pool2f"
+  type: "Pooling"
+  bottom: "conv2"
+  top: "pool2"
+  pooling_param {
+    pool: AVE
+    kernel_size: 3
+    stride: 2
+  }
+}
+layer {
+  name: "norm2f"
+  type: "LRN"
+  bottom: "pool2"
+  top: "norm2"
+  lrn_param {
+    local_size: 3
+    alpha: 5e-05
+    beta: 0.75
+    norm_region: WITHIN_CHANNEL
+  }
+}
+layer {
+  name: "conv3f"
+  type: "Convolution"
+  bottom: "norm2"
+  top: "conv3"
+  param {
+    lr_mult: 1
+  }
+  param {
+    lr_mult: 2
+  }
+  convolution_param {
+    num_output: 64
+    pad: 2
+    kernel_size: 5
+    stride: 1
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+    }
+  }
+}
+layer {
+  name: "relu3f"
+  type: "ReLU"
+  bottom: "conv3"
+  top: "conv3"
+}
+layer {
+  name: "dropconv3f"
+  type: "Dropout"
+  bottom: "conv3"
+  top: "conv3"
+  dropout_param {
+    dropout_ratio: 0.5
+  }
+}
+
+layer {
+  name: "pool3f"
+  type: "Pooling"
+  bottom: "conv3"
+  top: "pool3"
+  pooling_param {
+    pool: AVE
+    kernel_size: 3
+    stride: 2
+  }
+}
+
+layer {
+  type: "Flatten"
+  name: "p3flat"
+  bottom: "pool3"
+  top: "pool3flat"
+}
+
+layer {
+  type: "Flatten"
+  name: "ip1cflat"
+  bottom: "ip1_coarse"
+  top: "ip1c_flat"
+}
+
+# one layer to combine pool3  + prior from coarse categories net
+layer {
+  type: "Concat"
+  bottom: "pool3flat"
+  bottom: "ip1c_flat"
+  top: "ip1_combine"
+  name: "concat"
+}
+
+
+
+layer {
+  name: "ip1_fine_combine"
+  type: "InnerProduct"
+  bottom: "ip1_combine" 
+  #bottom: "pool3flat" 
+  top: "ip1_fine"
+  param {
+    lr_mult: 100
+    decay_mult: 1
+  }
+  param {
+    lr_mult: 200
+    decay_mult: 0
+  }
+  inner_product_param {
+    num_output: 1000
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+    }
+  }
+}
+
+layer {
+  name: "dropip1c"
+  type: "Dropout"
+  bottom: "ip1_fine"
+  top: "ip1_fine"
+  dropout_param {
+    dropout_ratio: 0.5
+  }
+}
+
+# one layer to combine ip1_fine + prior from coarse categories net
+#layer {
+#  type: "Concat"
+#  bottom: "ip1_fine"
+#  bottom: "ip1_coarse"
+#  top: "ip2_combine"
+#  name: "concat"
+#}
+
+layer {
+  name: "ip2_fine"
+  type: "InnerProduct"
+  bottom: "ip1_fine"  # adding prior from coarse categories net.
+  top: "ip2_fine"
+  param {
+    lr_mult: 100
+    decay_mult: 1
+  }
+  param {
+    lr_mult: 200
+    decay_mult: 0
+  }
+  inner_product_param {
+    num_output: 100
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+    }
+  }
+}
+
+layer {
+  name: "accuracy_fine"
+  type: "Accuracy"
+  bottom: "ip2_fine"
+  bottom: "fine_labels"
+  top: "accuracy_fine"
+  include {
+    phase: TEST
+  }
+}
+layer {
+  name: "loss"
+  type: "SoftmaxWithLoss"
+  bottom: "ip2_fine"
+  bottom: "fine_labels"
+  top: "loss"
+}

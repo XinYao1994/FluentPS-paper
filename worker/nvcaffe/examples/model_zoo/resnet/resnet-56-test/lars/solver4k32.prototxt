@@ -1,0 +1,32 @@
+test_iter: 100
+test_interval: 1000
+base_lr: 9.0
+# base_lr: 0.1
+
+local_lr_auto: true
+local_gw_ratio: 0.001
+
+rampup_lr: 1.0
+rampup_interval: 10000
+
+display: 100
+max_iter: 125000
+#lr_policy: "multistep"
+lr_policy: "poly"
+#gamma: 0.1
+power: 2.0
+momentum: 0.9
+#weight_decay: 0.0005
+weight_decay: 1e-4
+
+snapshot: 1000000
+snapshot_prefix: "examples/model_zoo/cifar10_resnet56"
+snapshot_after_train: false
+
+solver_mode: GPU
+random_seed: 1
+net: "examples/model_zoo/resnet/resnet-56/trainval4k32.prototxt"
+test_initialization: true
+stepvalue: 32000
+stepvalue: 48000
+type: "Nesterov"

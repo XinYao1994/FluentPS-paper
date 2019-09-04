@@ -1,0 +1,138 @@
+#include "ps/ps.h"
+#include <unistd.h>
+using namespace ps;
+using namespace std;
+
+#define HAVE_CAFFE
+
+void StartServer() {
+	if (!IsServer()) {
+		return;
+	}
+	cout << "num of servers[" << NumServers() << "]" << endl;
+	auto server = new KVServer<float>(0);
+	server->set_request_handle(KVServerDefaultHandle<float>());
+	RegisterExitCallback([server]() {delete server;});
+}
+/*
+struct SchedulerReqHandle {
+  void operator()(const SimpleData& req, SimpleApp* app) {
+	  count++;
+	  if(count == NumWorkers()){
+		  count = 0;
+		  for(auto const& req: buffer){
+			  app->Response(req);
+		  }
+		  buffer.clear();
+	  }
+	  else{
+		  buffer.push_back(req);
+	  }
+  }
+  int count = 0;
+  vector<SimpleData> buffer;
+};*/
+
+void ReqHandle(const SimpleData& req, SimpleApp* app) {
+	cout << "receive data: "<< endl;
+	app->Response(req);
+}
+
+void StartScheduler(){
+	if (!IsScheduler()) {
+		return;
+	}
+	SimpleApp app(0, 0);
+	app.set_request_handle(ReqHandle); //SchedulerReqHandle()
+	app.Wait(app.Request(1, "", kScheduler));
+}
+
+/*
+struct WorkerReqHandle {
+  void operator()(const SimpleData& req, SimpleApp* app) {
+	  KVWorker<float> *kv = (KVWorker<float> *)app;
+	  if(count){
+		  cout << "execute pull" << endl;
+		  kv->Wait(kv->Pull(keys, &rets));
+	  }
+	  else{
+		  cout << "init KV" << endl;
+		  keys.resize(num);
+		  vals.resize(num);
+		  int rank = MyRank();
+		  for (int i = 0; i < num; ++i) {
+			  keys[i] = kMaxKey / num * i + rank; // kMaxKey / num * i + rank, two worker should update the same key
+			  vals[i] = i; //(rand() % 1000);
+			  }
+	  }
+	  // do computation
+	  cout << "execute push" << endl;
+	  kv->Wait(kv->Push(keys, vals));
+	  count ++;
+	  app->Response(req);
+  }
+  int count = 0;
+};*/
+
+void RunWorker_Caffe() {
+	if (!IsWorker())
+		return;
+	KVWorker<float> kv(0, 0);
+	// init
+	int num = 10000;
+	vector<Key> keys(num);
+	vector<float> vals(num);
+
+	int rank = MyRank();
+	srand(rank + 7);
+	for (int i = 0; i < num; ++i) {
+		keys[i] = kMaxKey / num * i; // kMaxKey / num * i + rank, two worker should update the same key
+		vals[i] = i; //(rand() % 1000);
+	}
+	// push
+	int repeat = 50;
+	vector<int> ts;
+	vector<float> rets;
+	for (int i = 0; i < repeat; ++i) {
+		cout << "enter iteration: " << i << endl;
+		//BSP
+		kv.Wait(kv.Push(keys, vals));
+		//kv.Push(keys, vals);
+		cout << "send to scheduler: " << i << endl;
+		//send to schduler for sync
+		//kv.Wait(kv.Request(1, "", kScheduler));
+
+		kv.Wait(kv.Pull(keys, &rets));
+
+		//ASP
+		//ts.push_back(kv.Push(keys, vals));
+		//kv.Wait(kv.Pull(keys, &rets));
+
+	}
+	float res = 0;
+	for (int i = 0; i < num; ++i) {
+		res += fabs(rets[i] - vals[i] * repeat * NumWorkers());
+	}
+	//CHECK_LT(res / repeat, 1e-5);
+	LL<< "error: " << res / repeat;
+}
+
+
+int main(int argc, char *argv[]) {
+	// start system
+	Start(0);
+	// setup server nodes
+	StartScheduler();
+	// setup server nodes
+	StartServer();
+	// run worker nodes
+	//RunWorker();
+#ifdef HAVE_CAFFE
+	RunWorker_Caffe();
+#else
+
+#endif
+	// stop system
+	Finalize(0, true);
+	return 0;
+}
